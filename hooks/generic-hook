@@ -1,0 +1,17 @@
+#!/bin/sh
+# -*- mode: sh -*-
+
+_HOOK="${0##*/}"
+_HOOK_DIR="$(cd ${0%/*}; pwd)/${_HOOK}.d"
+
+BIFS="$IFS"
+IFS='
+'
+
+_HOOK_STATUS=0
+for hook in $(find "$_HOOK_DIR" -type f); do
+    IFS="$BIFS" "$hook" "$@"
+    [ $? -ne 0 ] && _HOOK_STATUS=1
+done
+
+exit $_HOOK_STATUS
