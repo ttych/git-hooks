@@ -1,12 +1,24 @@
 #!/bin/sh
 # -*- mode: sh -*-
 
+
 SCRIPT_PATH="$(cd ${0%/*}; pwd)"
+FORCE=false
+GENERIC_HOOK="$SCRIPT_PATH/../hooks/generic-hook"
 
-
-is_inside_git()
+true()
 {
-    git rev-parse --is-inside-work-tree 2>/dev/null >/dev/null
+    return 0
+}
+
+false()
+{
+    return 1
+}
+
+git_dir()
+{
+    git_dir=$(git rev-parse --git-dir 2>/dev/null)
 }
 
 git_hooks_l()
@@ -14,20 +26,29 @@ git_hooks_l()
     git_hooks_list "$@"
 }
 
-LIST_FORMAT="| %-20s | %-50s |\n"
+git_hooks_list()
+{
+    git_hooks_list_print "TYPE" "NAME"
+    for git_hooks_list__d in "$SCRIPT_PATH/../hooks"/*/; do
+        git_hooks_prints "$git_hooks_list__d"
+    done
+}
 
+LIST_FORMAT="| %-20s | %-40s |\n"
 git_hooks_list_print()
 {
     printf "$LIST_FORMAT" "$1" "$2"
 }
 
-git_hooks_list()
+git_hooks_prints()
 (
-    cd "$SCRIPT_PATH/../hooks" 2>/dev/null || return  1
-    git_hooks_list_print "HOOK" "DESCRIPTION"
-    for f in *; do
-        [ -r "$f" ] || continue
-        git_hooks_list_print "$f"
+    cd "$1" 2>/dev/null || return 1
+    git_hooks_prints__type="${1%/}"
+    git_hooks_prints__type="${git_hooks_prints__type##*/}"
+
+    find . -type f | while read git_hooks_prints__f; do
+        [ -r "$git_hooks_prints__f" ] || continue
+        git_hooks_list_print "$git_hooks_prints__type" "${git_hooks_prints__f#./}"
     done
 )
 
@@ -38,7 +59,7 @@ git_hooks_i()
 
 git_hooks_install()
 {
-    is_inside_git || return 1
+    git_dir || return 1
     # FIXME
     :
 }
@@ -49,10 +70,11 @@ git_hooks_I()
 }
 
 git_hooks_installed()
-{
-    # FIXME
-    :
-}
+(
+    git_dir || return 1
+    cd "$git_dir/hooks" || return 1
+    git_hooks_prints
+)
 
 git_hooks_u()
 {
@@ -89,11 +111,13 @@ git_hooks()
 {
     git_hooks=
 
-    while getopts :hD opt; do
+    git_hooks__force=false
+    while getopts :hDf opt; do
         case $opt in
             h) git_hooks_help
                exit 0
                ;;
+            f) FORCE=true ;;
             D) set -x ;;
         esac
     done
