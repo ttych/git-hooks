@@ -1,0 +1,121 @@
+#!/bin/sh
+# -*- mode: sh -*-
+
+SCRIPT_PATH="$(cd ${0%/*}; pwd)"
+
+
+is_inside_git()
+{
+    git rev-parse --is-inside-work-tree 2>/dev/null >/dev/null
+}
+
+git_hooks_l()
+{
+    git_hooks_list "$@"
+}
+
+LIST_FORMAT="| %-20s | %-50s |\n"
+
+git_hooks_list_print()
+{
+    printf "$LIST_FORMAT" "$1" "$2"
+}
+
+git_hooks_list()
+(
+    cd "$SCRIPT_PATH/../hooks" 2>/dev/null || return  1
+    git_hooks_list_print "HOOK" "DESCRIPTION"
+    for f in *; do
+        [ -r "$f" ] || continue
+        git_hooks_list_print "$f"
+    done
+)
+
+git_hooks_i()
+{
+    git_hooks_install "$@"
+}
+
+git_hooks_install()
+{
+    is_inside_git || return 1
+    # FIXME
+    :
+}
+
+git_hooks_I()
+{
+    git_hooks_installed "$@"
+}
+
+git_hooks_installed()
+{
+    # FIXME
+    :
+}
+
+git_hooks_u()
+{
+    git_hooks_uninstall "$@"
+}
+
+git_hooks_uninstall()
+{
+    # FIXME
+    :
+}
+
+git_hooks_h()
+{
+    git_hooks_help "$@"
+}
+
+git_hooks_help()
+{
+    cat <<EOF
+Usage is :
+      $0 [-h] [-D] <action> <action_parameters>
+
+with action in :
+     h|help
+     l|list
+     i|install
+     I|installed
+     u|uninstall
+EOF
+}
+
+git_hooks()
+{
+    git_hooks=
+
+    while getopts :hD opt; do
+        case $opt in
+            h) git_hooks_help
+               exit 0
+               ;;
+            D) set -x ;;
+        esac
+    done
+    shift $(($OPTIND - 1))
+
+    git_hooks__action=
+    case $1 in
+        h|help|l|list|i|install|I|installed|u|uninstall|"")
+            git_hooks__action="git_hooks_${1:-list}"
+            [ $# -gt 0 ] && shift
+            $git_hooks__action "$@"
+            ;;
+        *)
+            echo >&2 "unknown action \"$1\""
+            git_hooks_help
+            exit 1
+            ;;
+    esac
+}
+
+case "$0" in
+    */git-hooks)
+        git_hooks "$@"
+        ;;
+esac
