@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# A hook script that checks the length of the commit message.
+#
+# Called by "git commit" with one argument, the name of the file
+# that has the commit message. The hook should exit with non-zero
+# status after issuing an appropriate message if it wants to stop the
+# commit. The hook is allowed to edit the commit message file.
+#
+# by Enrico Campidoglio
+#    @ecampidoglio
+# at http://git.io/validate-commit-msg
+
+
+SUMMARY_LENGTH=51
+
+
+DEFAULT="\033[0m"
+YELLOW="\033[1;33m"
+
+printWarning()
+{
+    printf >&2 "${YELLOW}${1}${DEFAULT}\n"
+}
+
+printNewline()
+{
+    printf "\n"
+}
+
+captureUserInput()
+{
+    # Assigns stdin to the keyboard
+    exec < /dev/tty
+}
+
+confirm()
+{
+    read -p "$1 [y/n]"$'\n' -n 1 -r
+}
+
+messageFilePath=$1
+message=$(cat $messageFilePath)
+firstLine=$(printf "$message" | sed -n 1p)
+firstLineLength=${#firstLine}
+
+test $firstLineLength -lt $SUMMARY_LENGTH || {
+    printWarning "Tip: the first line of the commit message shouldn't be longer than 50 characters and yours was $firstLineLength."
+    captureUserInput
+    confirm "Do you want to modify the message in your editor or just commit it?"
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        $EDITOR $messageFilePath
+    fi
+
+    printNewline
+    exit 0
+}
