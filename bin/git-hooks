@@ -2,10 +2,6 @@
 # -*- mode: sh -*-
 
 
-SCRIPT_PATH="$(cd ${0%/*}; pwd)"
-FORCE=false
-GENERIC_HOOK="$SCRIPT_PATH/../hooks/generic-hook"
-
 true()
 {
     return 0
@@ -16,10 +12,35 @@ false()
     return 1
 }
 
+md5()
+{
+    md5=$(md5sum "$1") || return 1
+    md5="${md5%% *}"
+    echo "$md5"
+}
+
 git_dir()
 {
     git_dir=$(git rev-parse --git-dir 2>/dev/null)
 }
+
+
+SCRIPT_PATH="$(cd ${0%/*}; pwd)"
+HOOKS_DIR="${SCRIPT_PATH}/../hooks"
+GENERIC_HOOK="${HOOKS_DIR}/generic-hook"
+GENERIC_HOOK_CKSUM=$(md5 "$GENERIC_HOOK")
+
+
+git_hooks_list_hooks()
+{
+    git_hooks_list_hooks=
+    for git_hooks_list_hooks__d in "$HOOKS_DIR"/*/; do
+        git_hooks_list_hooks__tmp="${git_hooks_list_hooks__d%/}"
+        git_hooks_list_hooks__tmp="${git_hooks_list_hooks__tmp##*/}"
+        git_hooks_list_hooks="${git_hooks_list_hooks:+$git_hooks_list_hooks }${git_hooks_list_hooks__tmp}"
+    done
+}
+git_hooks_list_hooks
 
 git_hooks_l()
 {
@@ -28,29 +49,32 @@ git_hooks_l()
 
 git_hooks_list()
 {
-    git_hooks_list_print "TYPE" "NAME"
-    for git_hooks_list__d in "$SCRIPT_PATH/../hooks"/*/; do
-        git_hooks_prints "$git_hooks_list__d"
+    git_hooks_print "ID" "TYPE" "NAME"
+    for git_hooks_installed__hook in $git_hooks_list_hooks; do
+        git_hooks_list_print "$git_hooks_installed__hook"
     done
 }
 
-LIST_FORMAT="| %-20s | %-40s |\n"
 git_hooks_list_print()
-{
-    printf "$LIST_FORMAT" "$1" "$2"
-}
-
-git_hooks_prints()
 (
-    cd "$1" 2>/dev/null || return 1
-    git_hooks_prints__type="${1%/}"
-    git_hooks_prints__type="${git_hooks_prints__type##*/}"
+    [ -d "$HOOKS_DIR/$1" ] || return 0
+    cd "$HOOKS_DIR/$1" 2>/dev/null || return 1
+    git_hooks_list_print__type="${1%/}"
+    git_hooks_list_print__type="${git_hooks_list_print__type##*/}"
 
-    find . -type f | while read git_hooks_prints__f; do
-        [ -r "$git_hooks_prints__f" ] || continue
-        git_hooks_list_print "$git_hooks_prints__type" "${git_hooks_prints__f#./}"
+    find . -type f  -name '*' ! -name '.keep' | while read git_hooks_list_print__f; do
+        [ -r "$git_hooks_list_print__f" ] || continue
+        git_hooks_print "$git_hooks_list_print__type/${git_hooks_list_print__f#./}" \
+                             "$git_hooks_list_print__type" \
+                             "${git_hooks_list_print__f#./}"
     done
 )
+
+LIST_FORMAT="| %-40s | %-18s | %-24s |\n"
+git_hooks_print()
+{
+    printf "$LIST_FORMAT" "$1" "$2" "$3"
+}
 
 git_hooks_i()
 {
@@ -59,10 +83,59 @@ git_hooks_i()
 
 git_hooks_install()
 {
-    git_dir || return 1
-    # FIXME
-    :
+    git_dir || {
+        echo >&2 'not inside a git repository'
+        return 1
+    }
+
+    for git_hooks_install__h; do
+        git_hooks_identify "$HOOKS_DIR" "$git_hooks_install__h" || {
+            echo >&2 "not able to find hooks: $git_hooks_install__h"
+            return 1
+        }
+
+        git_hooks_install_hook "$git_hooks_identify" "$git_dir/hooks"
+    done
 }
+
+git_hooks_identify()
+{
+    git_hooks_identify=
+    if [ -r "$1/$2" ]; then
+        git_hooks_identify="$1/$2"
+        return 0
+    fi
+
+    git_hooks_identify=$(find "$1" -type f -name "$2")
+    [ -n "$git_hooks_identify" ] && return 0
+
+    return 1
+}
+
+git_hooks_install_hook()
+{
+    [ -r "$1" ] || return 1
+    git_hooks_install_hook__name="${1##*/}"
+    git_hooks_install_hook__type="${1%/$git_hooks_install_hook__name}"
+    git_hooks_install_hook__type="${git_hooks_install_hook__type##*/}"
+
+    git_hooks_install_hook__hook="$2/${git_hooks_install_hook__type}"
+    git_hooks_install_hook__tgtdir="${git_hooks_install_hook__hook}.d"
+    mkdir -p "$git_hooks_install_hook__tgtdir" || return 1
+    if [ -r "$git_hooks_install_hook__hook" ]; then
+        if [ $(md5 "$git_hooks_install_hook__hook") != "$GENERIC_HOOK_CKSUM" ]; then
+            mv "$git_hooks_install_hook__hook" \
+               "$git_hooks_install_hook__tgtdir/$git_hooks_install_hook__type.$(date '+%s')" ||
+                return 1
+        fi
+    fi
+    cp "$GENERIC_HOOK" "$git_hooks_install_hook__hook" &&
+        chmod +x "$git_hooks_install_hook__hook" &&
+    cp "$1" "$git_hooks_install_hook__tgtdir/$git_hooks_install_hook__name" &&
+        chmod +x "$git_hooks_install_hook__tgtdir/$git_hooks_install_hook__name"
+}
+
+
 
 git_hooks_I()
 {
@@ -70,10 +143,40 @@ git_hooks_I()
 }
 
 git_hooks_installed()
-(
+{
     git_dir || return 1
-    cd "$git_dir/hooks" || return 1
-    git_hooks_prints
+    git_hooks_print "ID" "TYPE" "NAME"
+
+    for git_hooks_installed__hook in $git_hooks_list_hooks; do
+        git_hooks_installed_print "$git_hooks_installed__hook"
+    done
+}
+
+git_hooks_installed_print()
+{
+    [ -r "$git_dir/hooks/$1" ] || return 0
+
+    git_hooks_installed_print__type="$1"
+    if [ "$(md5 $git_dir/hooks/$1)" = "$GENERIC_HOOK_CKSUM" ]; then
+        git_hooks_installed_print__type=generic
+    fi
+    git_hooks_print "$1" "$git_hooks_installed_print__type" "$1"
+
+    if [ "$git_hooks_installed_print__type" = "generic" ]; then
+        git_hooks_installed_print_d "$1"
+    fi
+}
+
+git_hooks_installed_print_d()
+(
+    [ -d "$git_dir/hooks/$1.d" ] || return 0
+    cd "$git_dir/hooks/$1.d" 2>/dev/null || return 1
+    find . -type f | while read git_hooks_installed_print_d__f; do
+        [ -r "$git_hooks_installed_print_d__f" ] || continue
+        git_hooks_print "$1.d/${git_hooks_installed_print_d__f#./}" \
+                        "$1" \
+                        "${git_hooks_installed_print_d__f#./}"
+    done
 )
 
 git_hooks_u()
@@ -83,8 +186,19 @@ git_hooks_u()
 
 git_hooks_uninstall()
 {
-    # FIXME
-    :
+    git_dir || {
+        echo >&2 'not inside a git repository'
+        return 1
+    }
+
+    for git_hooks_uninstall__h; do
+        git_hooks_identify "$git_dir/hooks" "$git_hooks_uninstall__h" || {
+            echo >&2 "not able to find hooks: $git_hooks_uninstall__h"
+            return 1
+        }
+
+        rm -Rf "$git_hooks_identify"
+    done
 }
 
 git_hooks_h()
@@ -111,13 +225,11 @@ git_hooks()
 {
     git_hooks=
 
-    git_hooks__force=false
-    while getopts :hDf opt; do
+    while getopts :hD opt; do
         case $opt in
             h) git_hooks_help
                exit 0
                ;;
-            f) FORCE=true ;;
             D) set -x ;;
         esac
     done
