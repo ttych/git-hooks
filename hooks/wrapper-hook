@@ -10,7 +10,7 @@ IFS='
 
 _HOOK_STATUS=0
 for hook in $(find "$_HOOK_DIR" -type f); do
-    IFS="$BIFS" "$hook" "$@"
+    IFS="$BIFS" HOOK="$_HOOK" "$hook" "$@"
     [ $? -ne 0 ] && _HOOK_STATUS=1
 done
 
