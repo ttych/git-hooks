@@ -1,0 +1,128 @@
+#+TITLE: README
+#+AUTHOR: ttych
+#+STARTUP: content
+
+* Git hooks
+** Client-side hooks
+*** committing-workflow hooks
+**** pre-commit
+	 - before you even type in a commit message
+     - used to inspect the snapshot that's about to be committed
+	 - bypass it with git commit --no-verify
+	 - check for code style / check for trailing whitespace / check
+       for appropriate documentation
+
+	 args: X
+     exit-code: non-zero aborts the commit
+**** prepare-commit-msg
+	 - before the commit message editor is fired up
+     - after the default message is created
+     - programmatically insert information
+
+	 args:
+	 - the path to the file that holds the commit message
+     - the type of commit
+     - the commit SHA-1
+	 exit-code: X
+**** commit-msg
+     - to validate your project state or commit message before
+       allowing a commit to go through
+
+	 args:
+     - the path to a temporary file that contains the commit message
+     exit-code: non-zero aborts the commit
+**** post-commit
+	 - get the last commit by running git log -1 HEAD
+	 - used for notification or something similar
+
+     args: X
+     exit-code: X
+*** email-workflow scripts
+	- invoked by the git am command
+**** applypatch-msg
+	 - use this to make sure a commit message is properly formatted,
+       or to normalize the message by having the script edit it in
+       place
+
+     args:
+	 - the name of the temporary file that contains the proposed commit message
+     exit-code: non-zero aborts the patch
+**** pre-applypatch
+	 - run after the patch is applied
+	 - but run before a commit is made
+	 - use it to inspect the snapshot before making the commit
+
+     args: X
+     exit-code: non-zero aborts the patch
+**** post-applypatch
+	 - runs after the commit is made
+     - use it to notify a group or the author of the patch
+
+     args: X
+     exit-code: X
+*** everything else
+**** pre-rebase
+	 - runs before you rebase anything
+     - use this hook to disallow rebasing any commits that have already been pushed
+
+     args: X
+     exit-code: non-zero aborts the process
+**** post-rewrite
+	 - run by commands that replace commits (amend, rebase)
+
+     args: X
+     exit-code: non-zero aborts the process
+**** post-checkout
+     - after a successful checkout
+     - use it to set up your working directory properly
+     - moving in large binary files, auto-generating documentation
+
+     args: X
+     exit-code: X
+**** post-merge
+	 - runs after a successful merge command
+	 - can likewise validate the presence of files external to Git control
+
+     args: X
+     exit-code: X
+**** pre-push
+	 - after the remote refs have been updated
+     - before any objects have been transferred
+     - non-zero exit code will abort the push
+
+     args: X
+     exit-code: non-zero aborts the process
+**** pre-auto-gc
+	 - invoked just before the garbage collection takes place
+     - used to notify you that this is happening
+     - or used to abort the collection if now isn't a good time
+
+     args: X
+     exit-code: non-zero aborts the process
+** Server-side hooks
+*** pre-receive
+	- run when handling a push from a client
+    - used to do things like make sure none of the updated references
+      are non-fast-forwards
+    - if the pusher is trying to push to multiple branches,
+      pre-receive runs only once
+
+    args: X
+    exit-code: non-zero exit code aborts the process
+*** update
+	- run once for each branch the pusher is trying to update
+
+    args: X
+    exit-code: non-zero exit code will abort only for the current reference
+*** post-receive
+    - runs after the entire process is completed
+    - used to update other services or notify users :
+      emailing a list, notifying a continuous integration server, or
+      updating a ticket-tracking system, parse the commit messages to
+      see if any tickets need to be opened, modified, or closed
+    - the client doesn't disconnect until it has completed
+
+    args: X
+    exit-code: X
+* Git hooks documentation (reference)
+https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks
