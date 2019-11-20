@@ -1,0 +1,34 @@
+#!/bin/sh
+# -*- mode: sh -*-
+
+lint_flake8()
+{
+    flake8 "$@"
+}
+
+staged_files()
+{
+    git diff --staged --name-only
+}
+
+IFS='
+'
+python_files=
+for f in `staged_files`; do
+    case "$f" in
+        *.py)
+            python_files="$python_files \"$f\""
+            ;;
+    esac
+done
+
+lint_output=$(lint_flake8 $python_files)
+lint_status=$?
+
+if [ $lint_status -ne 0 ]; then
+    echo "${0##*/} git hook reported error(s):"
+    echo "$lint_output" | while read line; do
+        echo "  $line"
+    done
+    exit $lint_status
+fi
