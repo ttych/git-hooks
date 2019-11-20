@@ -1,0 +1,5 @@
+#!/bin/sh
+# -*- mode: sh -*-
+
+echo "hook: $HOOK $@"
+echo "sub-hook: ${0##*/} $@"
